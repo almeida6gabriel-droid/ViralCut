@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-main: #070a12;
+  --bg-card: #0f1627;
+  --stroke: rgba(120, 151, 255, 0.28);
+  --accent: #33d8ff;
+  --accent-2: #6a7cff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body), sans-serif;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(106, 124, 255, 0.2), transparent 36%),
+    radial-gradient(circle at 80% 0%, rgba(51, 216, 255, 0.22), transparent 40%),
+    radial-gradient(circle at 50% 120%, rgba(255, 107, 107, 0.16), transparent 38%),
+    var(--bg-main);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading), sans-serif;
+  letter-spacing: -0.02em;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.glass {
+  background: linear-gradient(180deg, rgba(15, 22, 39, 0.84), rgba(9, 14, 24, 0.86));
+  border: 1px solid var(--stroke);
+  backdrop-filter: blur(14px);
+}
+
+.grid-lights {
+  background-image:
+    linear-gradient(rgba(106, 124, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(106, 124, 255, 0.08) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+.soft-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(106, 124, 255, 0.8) rgba(17, 24, 39, 0.35);
+}
+
+.soft-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.soft-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(106, 124, 255, 0.75);
+}
+
+.soft-scroll::-webkit-scrollbar-track {
+  background: rgba(17, 24, 39, 0.35);
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0px);
+    opacity: 1;
+  }
+}
+
+.reveal {
+  animation: rise 700ms ease both;
+}

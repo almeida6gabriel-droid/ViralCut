@@ -1,0 +1,13 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/api/auth/google-config/route": "/api/auth/google-config",
+  "/api/jobs/[id]/regenerate/route": "/api/jobs/[id]/regenerate",
+  "/api/jobs/[id]/route": "/api/jobs/[id]",
+  "/api/jobs/route": "/api/jobs",
+  "/api/seo/route": "/api/seo",
+  "/api/auth/[...nextauth]/route": "/api/auth/[...nextauth]",
+  "/api/jobs/[id]/clips/[clipId]/stream/route": "/api/jobs/[id]/clips/[clipId]/stream",
+  "/api/jobs/[id]/clips/[clipId]/download/route": "/api/jobs/[id]/clips/[clipId]/download",
+  "/dashboard/page": "/dashboard",
+  "/page": "/"
+}
