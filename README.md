@@ -60,6 +60,10 @@ npm run dev
 - `lib/viral.ts`: scoring viral e sugestao de cortes
 - `lib/render.ts`: render dos clips 9:16 + legendas
 
+Variaveis uteis de render:
+- `FFMPEG_BIN`: caminho do ffmpeg (opcional)
+- `POPPINS_FONT_FILE`: caminho absoluto para `Poppins-ExtraBold.ttf` (opcional, recomendado para manter o visual no export)
+
 ## Observacao
 
 Estado de jobs e fila fica em memoria (MVP). Reiniciar o servidor limpa os jobs da RAM.

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { groupCaptionTokens, GroupedCaptionToken, normalizeSubtitleTimeline } from "@/lib/captions";
 import { ProcessingJob, ViralClip } from "@/lib/types";
 
 function stageLabel(stage: ProcessingJob["stage"]) {
@@ -40,6 +41,15 @@ function formatDate(iso: string) {
   }).format(new Date(iso));
 }
 
+function buildPreviewSubtitleCues(clip: ViralClip): GroupedCaptionToken[] {
+  const normalized = normalizeSubtitleTimeline({
+    subtitles: clip.subtitles,
+    clipStartSec: clip.startSec,
+    clipDurationSec: clip.durationSec,
+  });
+  return groupCaptionTokens(normalized);
+}
+
 interface SeoPack {
   titles: string[];
   description: string;
@@ -62,6 +72,12 @@ export function DashboardApp({ initialJobId }: DashboardAppProps) {
   const [regenerating, setRegenerating] = useState(false);
   const [seoByClip, setSeoByClip] = useState<Record<string, SeoPack>>({});
   const [drafts, setDrafts] = useState<Record<string, { title: string; transcriptSnippet: string }>>({});
+  const [previewCurrentTime, setPreviewCurrentTime] = useState(0);
+  const [previewVolume, setPreviewVolume] = useState(0.75);
+  const [previewMuted, setPreviewMuted] = useState(false);
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  const [subtitleDebug, setSubtitleDebug] = useState(false);
+  const previewVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -132,6 +148,82 @@ export function DashboardApp({ initialJobId }: DashboardAppProps) {
     () => selectedJob?.clips.find((clip) => clip.id === activeClipId) ?? selectedJob?.clips[0],
     [selectedJob, activeClipId]
   );
+
+  const previewCues = useMemo(() => (activeClip ? buildPreviewSubtitleCues(activeClip) : []), [activeClip]);
+
+  const activeCue = useMemo(
+    () =>
+      previewCues.find(
+        (cue) =>
+          previewCurrentTime >= cue.startSec - 0.02 &&
+          previewCurrentTime <= cue.endSec + 0.04
+      ),
+    [previewCues, previewCurrentTime]
+  );
+
+  const activeCueGroup = useMemo(() => {
+    if (activeCue) return activeCue.groupId;
+    if (previewCues.length === 0) return null;
+    const latestBeforeNow = [...previewCues]
+      .reverse()
+      .find((cue) => cue.startSec <= previewCurrentTime);
+    return latestBeforeNow?.groupId ?? previewCues[0].groupId;
+  }, [activeCue, previewCues, previewCurrentTime]);
+
+  const visibleCues = useMemo(
+    () => previewCues.filter((cue) => cue.groupId === activeCueGroup),
+    [previewCues, activeCueGroup]
+  );
+
+  const fallbackOverlayText = useMemo(() => {
+    if (!activeClip) return "";
+    const fromTranscript = activeClip.transcriptSnippet
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 8)
+      .join(" ");
+    return fromTranscript || activeClip.hookLine || activeClip.title;
+  }, [activeClip]);
+
+  useEffect(() => {
+    setPreviewCurrentTime(0);
+    setAutoplayBlocked(false);
+  }, [activeClip?.id]);
+
+  useEffect(() => {
+    const video = previewVideoRef.current;
+    if (!video) return;
+
+    video.volume = previewVolume;
+    video.muted = previewMuted;
+  }, [previewVolume, previewMuted, activeClip?.id]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const query = new URLSearchParams(window.location.search);
+    setSubtitleDebug(query.get("subtitleDebug") === "1");
+  }, []);
+
+  useEffect(() => {
+    if (!activeClip) return;
+    console.log("[subtitle-preview] mount", {
+      clipId: activeClip.id,
+      subtitlesCount: activeClip.subtitles.length,
+      normalizedCuesCount: previewCues.length,
+      clipDurationSec: activeClip.durationSec,
+    });
+  }, [activeClip?.id, activeClip?.subtitles.length, activeClip?.durationSec, previewCues.length]);
+
+  if (subtitleDebug) {
+    console.log("[subtitle-preview] render", {
+      clipId: activeClip?.id,
+      currentTimeSec: Number(previewCurrentTime.toFixed(3)),
+      subtitlesCount: activeClip?.subtitles.length ?? 0,
+      normalizedCuesCount: previewCues.length,
+      activeCueStartSec: activeCue?.startSec ?? null,
+      activeCueEndSec: activeCue?.endSec ?? null,
+    });
+  }
 
   async function saveClip(clipId: string) {
     if (!selectedJob) return;
@@ -404,28 +496,88 @@ export function DashboardApp({ initialJobId }: DashboardAppProps) {
                   <article className="rounded-2xl border border-indigo-300/20 bg-slate/60 p-4">
                     <h4 className="text-sm font-semibold text-slate-100">Preview estilo TikTok</h4>
                     {activeClip ? (
-                      <div className="mt-4 flex justify-center">
+                      <>
+                        <div className="mt-4 flex justify-center">
                         <div className="relative aspect-[9/16] w-64 overflow-hidden rounded-[2.4rem] border border-indigo-300/30 bg-black p-2 shadow-glow">
                           <video
+                            ref={previewVideoRef}
                             key={activeClip.id}
                             src={activeClip.previewUrl}
                             autoPlay
-                            muted
                             loop
                             playsInline
+                            muted={previewMuted}
+                            onCanPlay={async (event) => {
+                              const video = event.currentTarget;
+                              video.volume = previewVolume;
+                              video.muted = previewMuted;
+                              try {
+                                await video.play();
+                                setAutoplayBlocked(false);
+                              } catch {
+                                setAutoplayBlocked(true);
+                              }
+                            }}
+                            onLoadedMetadata={(event) => {
+                              const timeSec = event.currentTarget.currentTime;
+                              setPreviewCurrentTime(Number.isFinite(timeSec) ? timeSec : 0);
+                            }}
+                            onTimeUpdate={(event) => {
+                              const timeSec = event.currentTarget.currentTime;
+                              setPreviewCurrentTime(Number.isFinite(timeSec) ? timeSec : 0);
+                            }}
                             className="h-full w-full rounded-[2rem] object-cover"
                           />
-                          <div className="pointer-events-none absolute inset-x-3 bottom-4 rounded-xl bg-black/45 p-2 text-[11px] font-semibold leading-snug text-white">
-                            {activeClip.subtitles
-                              .slice(0, 10)
-                              .map((item) => `${item.text}${item.emoji ? ` ${item.emoji}` : ""}`)
-                              .join(" ")}
-                          </div>
-                          <div className="absolute left-3 right-3 top-4 rounded-lg bg-black/45 px-2 py-1 text-center text-[10px] font-semibold text-white">
-                            {activeClip.title}
-                          </div>
                         </div>
                       </div>
+
+                        <div className="mt-3 space-y-2">
+                        <div className="flex items-center gap-3 text-[11px] text-slate-200">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewMuted((current) => !current)}
+                            className="rounded-md border border-indigo-300/40 px-2 py-1 font-semibold transition hover:border-electric"
+                          >
+                            {previewMuted ? "Ativar áudio" : "Silenciar"}
+                          </button>
+                          <span>Volume: {Math.round(previewVolume * 100)}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          value={previewMuted ? 0 : previewVolume}
+                          onChange={(event) => {
+                            const value = Number(event.target.value);
+                            setPreviewVolume(value);
+                            setPreviewMuted(value <= 0);
+                          }}
+                          className="w-full accent-[#33d8ff]"
+                        />
+                        {autoplayBlocked ? (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const video = previewVideoRef.current;
+                              if (!video) return;
+                              setPreviewMuted(false);
+                              video.muted = false;
+                              video.volume = previewVolume;
+                              try {
+                                await video.play();
+                                setAutoplayBlocked(false);
+                              } catch {
+                                setAutoplayBlocked(true);
+                              }
+                            }}
+                            className="rounded-md border border-electric/45 px-2 py-1 text-[11px] font-semibold text-electric transition hover:bg-electric/10"
+                          >
+                            Tocar preview com áudio
+                          </button>
+                        ) : null}
+                        </div>
+                      </>
                     ) : (
                       <p className="mt-4 text-xs text-slate-300">Selecione um corte para visualizar.</p>
                     )}

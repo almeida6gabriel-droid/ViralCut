@@ -225,10 +225,14 @@ export function generateViralCuts(params: {
     const hashtags = chooseHashtags(angle, candidate.segment.tags);
     const title = clipTitle(angle, candidate.segment.text, selected.length);
 
-    const subtitles =
+    const generatedSubtitles =
       windowSegments.length > 0
         ? buildSubtitlesFromSegments(windowSegments)
         : buildFallbackSubtitles(candidate.segment.text, startSec);
+    const subtitles =
+      generatedSubtitles.length > 0
+        ? generatedSubtitles
+        : buildFallbackSubtitles(candidate.segment.text || candidate.segment.id, startSec);
 
     selected.push({
       id: `clip-${selected.length + 1}-${candidate.segment.id.slice(-8)}`,
